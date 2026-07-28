@@ -46,27 +46,32 @@ correct hits. So each list gets a weight; the single keyword weight (`0.3`) is
 recall@10 over the **300 SciFact test queries** (BEIR; ~1 relevant doc/query, so
 recall@10 is clean). Numbers are deterministic and reproduce exactly:
 
-| method | recall@10 | |
+| method | recall@10 | vs hybrid (paired sign test) |
 | --- | --- | --- |
-| keyword-only (`ts_rank_cd`) | 0.525 | |
-| vector-only (pgvector cosine) | 0.790 | |
-| **hybrid — weighted RRF** | **0.793** | beats both |
-| naive score addition | 0.553 | collapses |
+| keyword-only (`ts_rank_cd`) | 0.525 | hybrid +92 / −5, **p ≈ 0** |
+| vector-only (pgvector cosine) | 0.790 | hybrid +9 / −8, **p = 1.0 (noise)** |
+| **hybrid — weighted RRF** | **0.793** | — |
+| naive score addition | 0.553 | hybrid +82 / −4, **p ≈ 0** |
 
-Two things this shows:
+What this honestly shows:
 
-1. **Naive addition collapses to 0.553.** Adding `ts_rank` (0–20) to cosine
-   (0–1) lets the keyword magnitude dominate, so the "hybrid" degrades to roughly
-   keyword-only. That collapse *is* the incompatible-scales problem, measured.
-2. **Keyword and vector fail on *different* queries** — the reason to fuse at
-   all. Vector rescues **85** queries keyword missed (paraphrased claims with no
+1. **Naive addition collapses to 0.553** — statistically significant. Adding
+   `ts_rank` (0–20) to cosine (0–1) lets the keyword magnitude dominate, so the
+   "hybrid" degrades to roughly keyword-only. That collapse *is* the
+   incompatible-scales problem, measured. RRF (rank-based) avoids it.
+2. **Keyword and vector fail on *different* queries** — the reason to fuse.
+   Vector rescues **85** queries keyword missed (paraphrased claims with no
    shared terms); keyword rescues **8** queries vector missed (rare exact terms
    the embedding blurs).
+3. **Hybrid significantly beats keyword-only and naive addition**, and is **not
+   worse** than vector-only.
 
-**Honest caveat:** the hybrid margin *over vector* is slim (0.793 vs 0.790, ~1
-query in 300). SciFact dense retrieval is a very strong baseline, so hybrid's
-gain over dense-alone is small but real and positive; the unambiguous, dramatic
-result is the naive-addition collapse. Reporting the number, not dressing it up.
+**The honest limit, stated plainly:** hybrid's aggregate gain *over vector alone*
+is within noise (+9/−8 queries, sign-test p = 1.0). SciFact dense retrieval is a
+very strong baseline, so on this corpus fusion mostly matches it rather than
+beating it — while decisively beating keyword-only and naive addition. The test
+asserts exactly this (significant over keyword/naive, not-worse than vector), not
+a 1-query "win" dressed up as a result.
 
 ## The approach I rejected, and why
 
@@ -128,10 +133,29 @@ roughly the slower one plus the embed.
 - **Single embedding model** (`all-MiniLM-L6-v2`, 384-dim). No reranking
   (a cross-encoder second stage is the usual next accuracy win), no query
   expansion, no chunking of long docs.
-- **The fusion weight is one global scalar** tuned once on train. A production
-  system would tune per domain and revisit as the corpus/model changes.
+- **The fusion weight is one global scalar** tuned once on train. It is
+  transcribed by hand from `npm run tune` into `FUSION_WEIGHTS` (no automated
+  binding), so re-run the tuner if you change the corpus or model. A production
+  system would tune per domain and revisit as things drift.
+- **Retrieval pool depth = 100.** Fusion can only reorder docs in the top-100 of
+  each retriever, so a gold doc outside both pools is unreachable regardless of
+  fusion quality — recall is ceilinged by pool recall@100. Fine at 5k docs (the
+  gold doc is almost always pooled); at scale you'd widen the pool and/or measure
+  pool recall separately.
 - **Corpus and model are downloaded, not committed** (see below).
 - **`npm audit`** advisories are dev-toolchain transitive deps, not runtime.
+
+## Correctness review
+
+Before shipping, the fusion and the evaluation went through a lean adversarial
+review (one reader on retrieval/fusion correctness, one on evaluation
+methodology). It caught the important one: the original test asserted "hybrid >
+vector" as a hard proof on a ~1-query margin. That's now handled honestly — a
+paired sign test drives the assertions (significant over keyword/naive, not-worse
+than vector), and the numbers above report it. Also fixed: the suite now *fails*
+on a partially-loaded corpus instead of skipping green, and a contentless query
+short-circuits instead of returning vector noise. The pool-depth ceiling and the
+hand-transcribed fusion weight are documented above.
 
 ## Run it
 
