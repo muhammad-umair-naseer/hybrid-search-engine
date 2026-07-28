@@ -1,0 +1,9 @@
+node_modules/
+dist/
+*.log
+.DS_Store
+.env
+# BEIR corpus is downloaded at setup time, not committed.
+data/
+# transformers.js model cache
+.cache/
