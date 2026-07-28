@@ -12,6 +12,7 @@
     "search": "tsx src/scripts/search.ts",
     "eval": "tsx src/scripts/evaluate.ts",
     "tune": "tsx src/scripts/tune.ts",
+    "bench": "tsx src/scripts/bench.ts",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
