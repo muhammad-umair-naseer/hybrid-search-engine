@@ -1,5 +1,5 @@
 import { embed } from "./embed.js";
-import { keywordSearch, vectorSearch, type Scored } from "./retrieval.js";
+import { keywordSearch, vectorSearch, hasContentTerms, type Scored } from "./retrieval.js";
 import { fuseRRF, fuseNaive } from "./fusion.js";
 
 export type Method = "keyword" | "vector" | "hybrid" | "naive";
@@ -41,6 +41,11 @@ export async function searchAll(
   poolK = 100,
   weights: [number, number] = FUSION_WEIGHTS,
 ): Promise<AllRankings> {
+  // A contentless query has no meaningful answer — don't let the vector side
+  // return neighbours of a meaningless embedding and pass noise off as results.
+  if (!(await hasContentTerms(q))) {
+    return { keyword: [], vector: [], hybrid: [], naive: [] };
+  }
   const { keyword, vector } = await retrieveLists(q, poolK);
   return {
     keyword,

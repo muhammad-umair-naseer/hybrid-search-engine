@@ -6,6 +6,21 @@ export interface Scored {
 }
 
 /**
+ * Does the query contain any indexable content term? `plainto_tsquery` strips
+ * stopwords and punctuation, so an empty result means the query is contentless
+ * ("", "the a of", "!!!"). Used to short-circuit search: without this, the
+ * vector side would happily return the nearest neighbours of a meaningless
+ * embedding and present noise as results.
+ */
+export async function hasContentTerms(q: string): Promise<boolean> {
+  const { rows } = await query<{ has: boolean }>(
+    "SELECT plainto_tsquery('english', $1)::text <> '' AS has",
+    [q],
+  );
+  return rows[0]?.has ?? false;
+}
+
+/**
  * Keyword retrieval via Postgres full-text search, ranked by `ts_rank_cd` (term
  * frequency + proximity / cover density) — a real lexical signal, though NOT
  * literal BM25 (that needs an extension).

@@ -43,6 +43,40 @@ export async function evaluate(k = 10, poolK = 100): Promise<EvalResult> {
   return { recallAt10, perQuery, nQueries: n };
 }
 
+function binom(n: number, i: number): number {
+  let c = 1;
+  for (let j = 0; j < i; j++) c = (c * (n - j)) / (j + 1);
+  return c;
+}
+
+/**
+ * Paired two-sided sign test on per-query recall for two methods. Ties (equal
+ * recall) are dropped; the p-value asks how likely the observed win/loss split
+ * is under the null "the two methods are equally good". Small margins over many
+ * ties (e.g. hybrid vs a strong vector baseline) come out NOT significant —
+ * which is the honest verdict, not something to hide.
+ */
+export function signTest(
+  result: EvalResult,
+  a: Method,
+  b: Method,
+): { aWins: number; bWins: number; ties: number; pValue: number } {
+  let aWins = 0;
+  let bWins = 0;
+  let ties = 0;
+  for (const { recall } of result.perQuery) {
+    if (recall[a] > recall[b]) aWins++;
+    else if (recall[b] > recall[a]) bWins++;
+    else ties++;
+  }
+  const n = aWins + bWins;
+  const k = Math.max(aWins, bWins);
+  let tail = 0;
+  for (let i = k; i <= n; i++) tail += binom(n, i);
+  const pValue = n === 0 ? 1 : Math.min(1, 2 * tail * Math.pow(0.5, n));
+  return { aWins, bWins, ties, pValue };
+}
+
 /**
  * Complementarity: how often each single method fails (recall 0) on a query the
  * OTHER single method gets (recall > 0). This is the whole reason to fuse —
