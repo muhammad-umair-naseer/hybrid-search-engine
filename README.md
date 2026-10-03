@@ -3,7 +3,7 @@
 Hybrid keyword + semantic search over Postgres, built around one hard problem:
 **fusing a keyword relevance score and an embedding similarity into a single
 ranking when the two scores live on completely different, incomparable scales.**
-Day 4 of a 30-day build challenge — a vertical slice, not a product.
+Part of my [Advanced Build Series](https://github.com/muhammad-umair-naseer/advanced-build-series) — a vertical slice, not a product.
 
 Node + TypeScript · PostgreSQL (full-text search + pgvector) · Vitest.
 
